@@ -24,9 +24,11 @@ IMG = 0x400000
 M_SIZE = 0x8000             # new section .mod, appended after the last section
 CODE2 = 0x3000              # second hook code area (section .text2), after the state areas
 CODE_END = 0x4000           # end of the hook code (.text2)
+ICONTAB = CODE_END          # custom characters: relocated icon table (0x7F44F8 holds 750 entries)
+ICON_MAX = 0x800
 # layout inside .mod: +0x000 port table, +0x040 gamepads, +0x100 hook code,
 # +0x1F00.. mod state; +0x2600.. Free Play select state, camera lists, debug buffer;
-# +0x3000.. more hook code (.text2)
+# +0x3000.. more hook code (.text2); +0x4000 icon table (0x800 x 8 bytes)
 
 # 41 references to the 3-entry port->device table 0x297E040..0x297E063,
 # relocated to a 4-entry table at M_BASE. Format: <instruction operand VA> <old value>.
@@ -51,7 +53,7 @@ def assemble(research, m_base):
     tmp = tempfile.mkdtemp()
     obj, elf, binf = (os.path.join(tmp, n) for n in ("h.o", "h.elf", "h.bin"))
     args = [tool("as"), "--32", "--defsym", "M_BASE=0x%x" % m_base,
-            "-o", obj, os.path.join(HERE, "hooks.s")]
+            "-I", HERE, "-o", obj, os.path.join(HERE, "hooks.s")]
     if research:
         args[1:1] = ["--defsym", "RESEARCH=1"]
     subprocess.check_call(args)
@@ -283,6 +285,27 @@ def patch_code(d, fo, m_base, sym):
     # cheat codes ALLCHR / STUD1M
     expect(0x4C4714, "83c40433f6"); jmp(0x4C4714, sym["cheat_code"], 5)
     expect(0x5949C4, "8b0d6c139500"); jmp(0x5949C4, sym["story_owned"], 6)
+    # animation-name table: 0x400 -> 0x1000 entries (0x34 bytes each, from the main heap at
+    # start-up); the Cantina stops loading visitors when it is full (spawn log 0.30: 0x3FF)
+    expect(0x4CA48C, "6800040000"); struct.pack_into("<I", d, fo(0x4CA48D), 0x1000)
+    # game files: 4p_mods overlay, file log (loader file_hook)
+    expect(0x4FA3F0, "81ec04010000"); jmp(0x4FA3F0, sym["fopen_hook"], 6)
+    # icon table: 750 -> 0x800 entries at +0x4000 (custom characters each add icons; the
+    # static table 0x7F44F8 is full with about 6 of them), name space 8000 -> 0x6000 bytes
+    icontab = m_base + ICONTAB
+    expect(0x4CA14C, "68401f0000"); struct.pack_into("<I", d, fo(0x4CA14D), 0x6000)
+    expect(0x4CA151, "68ee020000"); struct.pack_into("<I", d, fo(0x4CA152), ICON_MAX)
+    expect(0x4CA160, "68f8447f00"); jmp(0x4CA160, sym["icon_reloc"], 5)
+    for va, old, off in ((0x419F21, "803cf5f8447f0003", 3), (0x419F41, "8b0cf5fc447f00", 3),
+                         (0x4C9E2F, "a3fc447f00", 1), (0x4CA77C, "a1fc447f00", 1)):
+        expect(va, old)
+        v = struct.unpack_from("<I", d, fo(va) + off)[0]
+        struct.pack_into("<I", d, fo(va) + off, v - 0x7F44F8 + icontab)
+    # custom character icons: load them once at start-up and keep them
+    expect(0x48AAD4, "e8174d1600"); call(0x48AAD4, sym["things_load"])
+    expect(0x55B6C0, "8b442404 85c0".replace(" ", "")); jmp(0x55B6C0, sym["char_icon_scene"], 6)
+    # (v0.37 icon_resolve fallback removed in v0.38: it picked the silhouette and could
+    #  hand the Cantina spawner a bad node; icons are now fixed inside the .gsc instead)
     # select: big portraits and names for P3/P4
     expect(0x47C1F8, "83c60183fe020f8c27fdffff"); jmp(0x47C1F8, sym["fs_bigloop"], 12)
     expect(0x47BFCC, "80bbc8b6870000"); jmp(0x47BFCC, sym["fs_bigother"], 7)

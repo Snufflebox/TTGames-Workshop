@@ -3802,3 +3802,5 @@ hub_guard:
 9:  popad
     ret
 
+/* custom characters and the 4p_mods file overlay */
+.include "custom_chars.s"

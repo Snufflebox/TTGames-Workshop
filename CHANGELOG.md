@@ -1,5 +1,13 @@
 # Changelog
 
+## TCS custom characters — 16 October 2026
+
+- The TCS four-player DLL adds community characters from `4p_mods\chars\` (up to
+  21) to the character list, collection, text, Free Play, Cantina and shop at
+  start-up, without changing game files; any game file can be replaced from
+  `4p_mods\`. Broken icon names and texture sizes in character packs are corrected
+  in generated copies. See [how it works](games/tcs/four-player/CUSTOM_CHARACTERS.md).
+
 ## TCS four-player patch — 16 October 2026
 
 - New [TCS PC four-player patch](games/tcs/four-player/README.md) (v0.48): local

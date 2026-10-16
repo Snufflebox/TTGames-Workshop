@@ -424,6 +424,9 @@ static void *__cdecl ring_material(BYTE *blue, int which)
 
 static void (WINAPI *orig_gstaft)(void *);
 static void __cdecl party_watch(void);
+static int __cdecl file_hook(const char *name, char *out);
+static void __cdecl icon_preload(void);
+static void *__cdecl icon_for_char(int ch);
 static int __cdecl key_f2(void);
 static BYTE *mod_base;
 static long WINAPI crash_handler(void *ep);
@@ -603,6 +606,9 @@ static void try_patch(const char *who)
         *(DWORD *)(base + blob_rel[i]) -= (DWORD)base;
     *(void **)(base + RING_FUNC_OFF) = (void *)ring_material;
     *(void **)(base + WATCH_FUNC_OFF) = (void *)party_watch;
+    *(void **)(base + FILE_FUNC_OFF) = (void *)file_hook;
+    *(void **)(base + ICONPRE_FUNC_OFF) = (void *)icon_preload;
+    *(void **)(base + ICONFOR_FUNC_OFF) = (void *)icon_for_char;
     *(void **)(base + F2_FUNC_OFF) = (void *)key_f2;
 
     for (i = 0; i < N_RECORDS; i++) {
@@ -657,6 +663,9 @@ static unsigned put_int(char *d, unsigned n, int v)
     return n;
 }
 
+/* custom characters and the 4p_mods file overlay (see ../../CUSTOM_CHARACTERS.md) */
+#include "custom_chars.c"
+
 /* F2 pressed this frame (went down since the last call) while the game has the focus:
    P2 joins the Free Play select with it (the keyboard is shared with P1) */
 static int __cdecl key_f2(void)
@@ -676,7 +685,8 @@ static int __cdecl key_f2(void)
 /* ---------- long pauses ----------
    Once per frame (levels and hubs): if the game's message pump stopped for 1 s or
    more since the previous frame (a freeze, not a stay in a menu), that is logged with
-   what the mod did during it (XInput checks). Level loads show
+   what the mod did during it (XInput checks; with custom characters also the files
+   opened through the mod). Level loads show
    up here only if they freeze. Up to 30 lines. */
 static int stall_lines;
 static DWORD stall_last;
@@ -692,6 +702,7 @@ static void stall_watch(void)
         stall_lines++;
         n = str_cpy(line, n, "pause ms ");
         n = put_int(line, n, (int)gap);
+        n = pause_files(line, n);
         n = str_cpy(line, n, ", XInput checks ");
         n = put_int(line, n, (int)xi_checks);
         n = str_cpy(line, n, " (");
@@ -705,6 +716,7 @@ static void stall_watch(void)
     }
     stall_last = now;
     pump_gap_max = 0;
+    pause_files_reset();
     xi_checks = xi_ms = 0;
 }
 
@@ -771,6 +783,7 @@ static DWORD WINAPI watchdog(void *arg)
             n = str_cpy(line, n, "  during pause ms ");
             n = put_int(line, n, (int)gap);
             n = sample_thread(line, n, main_tid, " | main ");
+            n = sample_files(line, n);
             line[n++] = '\r';
             line[n++] = '\n';
             h = CreateFileA(log_path, 4, 1, 0, 4, 0x80, 0);
@@ -799,6 +812,7 @@ static void __cdecl party_watch(void)
         }
     }
     stall_watch();
+    spawn_watch();
     for (k = 0; k < 4; k++) {
         BYTE *c = ((BYTE **)0x93D7F0)[k];
         cur[k * 2] = c ? *(unsigned short *)(c + 0x1064) | (*(DWORD *)(c + 0x1FC) & 0x80) << 16 : 0xFFFFFFFF;

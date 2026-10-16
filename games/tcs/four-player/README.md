@@ -39,6 +39,7 @@ Evidence labels: **Native** = confirmed by reading the executable's code;
 | P3/P4 pause and drop-out | v0.27: drop-out left P3 jumping and rejoining by itself; v0.28 fix | Untested |
 | Cantina shop for P3/P4 (open and control) | Implemented (v0.29) | Untested |
 | Cheat codes ALLCHR (all characters/vehicles bought) and STUD1M (+1,000,000 studs) | Implemented (v0.29) | Untested |
+| [Custom characters](CUSTOM_CHARACTERS.md) from `4p_mods\\chars\\` (up to 21) | Works (icons kept loaded since v0.39) | In-game |
 | P3/P4 controller configuration (Control Setup, second page) | Works (v0.27); v0.28 fixes cursor skipping | In-game |
 | DLL loader on the Steam executable | Works (patches on `DirectInput8Create`) | In-game |
 | Windowed mode | Attempted; window does not appear | In-game (failed) |
@@ -48,6 +49,7 @@ Evidence labels: **Native** = confirmed by reading the executable's code;
 | Character-switch portrait ring red/purple for P3/P4 | Implemented (v0.43) | Untested |
 | P3/P4 portraits of computer characters only while a pad could join them (also the Cantina and its loading screen) | Implemented (v0.45) | Untested |
 | No freeze when a controller is connected or disconnected | Implemented (v0.46: XInput check without WMI) | Untested |
+| Long freeze when Jolee Bindo loads (Cantina, Free Play) | Fixed in v0.48: custom models whose texture records disagree with their DDS are corrected | Untested (cause found in game with the v0.47 watchdog) |
 
 If one controller shows up twice in Windows (for example a pad plus a Steam
 Input or DS4Windows virtual copy), the copy cannot join as another player
@@ -139,6 +141,10 @@ with the files opened through the mod during it.
 - [AUDIT.md](AUDIT.md): every native function that treats P1/P2 specially, and
   whether P3/P4 are covered.
 - [HISTORY.md](HISTORY.md): every test build and what it changed.
+- [CUSTOM_CHARACTERS.md](CUSTOM_CHARACTERS.md): how custom characters and the
+  `4p_mods` file overlay work, with their hooks.
+- [MODS_README.txt](MODS_README.txt): the player guide placed in `4p_mods\`
+  (custom characters, replacing game files).
 - [PATCHES.md](PATCHES.md): each hook, its address, the original bytes and
   what the replacement does.
 - [RESEARCH.md](RESEARCH.md): native addresses and structures found while
@@ -147,6 +153,9 @@ with the files opened through the mod during it.
 - [src/build_dll.py](src/build_dll.py) and [src/dll/loader.c](src/dll/loader.c):
   DLL builder and runtime loader.
 - [src/build.py](src/build.py): shared patch definition and executable builder.
+- [src/custom_chars.s](src/custom_chars.s) and
+  [src/dll/custom_chars.c](src/dll/custom_chars.c): custom characters and the
+  `4p_mods` overlay (included by `hooks.s` and `loader.c`).
 - [src/test_dll_data.py](src/test_dll_data.py): checks the DLL patch data
   against the executable build at several load addresses.
 - [src/test_dxt_recolour.py](src/test_dxt_recolour.py): fuzz test that the
@@ -158,5 +167,7 @@ with the files opened through the mod during it.
   Other builds are rejected by the byte checks.
 - The patch has been played on one machine with two to three players. Four
   simultaneous players have not been tested.
+- Custom characters: up to 21 (the game's 340-character table; 319 are used by
+  the game itself).
 - Split screen is not affected. The camera still frames two players; it now
   picks the pair that is furthest apart.
